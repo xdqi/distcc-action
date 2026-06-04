@@ -1,25 +1,69 @@
 name: 'distcc Tailnet Farm'
 description: 'Turn GitHub runners into an ephemeral distcc farm over a Tailscale mesh'
 inputs:
-  mode:              { description: 'coordinator|worker', required: true }
-  oauth-client-id:   { description: 'Tailscale OAuth client id', required: true }
-  oauth-secret:      { description: 'Tailscale OAuth client secret', required: true }
-  expected-workers:  { description: 'workers expected (coordinator)', required: false }
-  min-workers:       { description: 'min online workers to proceed', required: false }
-  wait-timeout:      { description: 'max wait for workers', required: false, default: '300s' }
-  worker-index:      { description: 'matrix index (worker)', required: false }
-  tags:              { description: 'tailnet tags', required: false, default: 'tag:ci-distcc' }
-  run-prefix:        { description: 'naming prefix', required: false }
-  distcc-slots:      { description: 'per-worker slots (0=nproc)', required: false, default: '0' }
-  lzo:               { description: 'enable LZO', required: false, default: 'true' }
-  pump:              { description: 'enable pump (experimental)', required: false, default: 'false' }
-  poll-interval:     { description: 'teardown poll', required: false, default: '1s' }
-  teardown-threshold:{ description: 'consecutive offline reads', required: false, default: '5' }
-  sccache:           { description: 'enable sccache', required: false, default: 'false' }
+  mode:
+    description: 'coordinator|worker'
+    required: true
+  oauth-client-id:
+    description: 'Tailscale OAuth client id'
+    required: true
+  oauth-secret:
+    description: 'Tailscale OAuth client secret'
+    required: true
+  expected-workers:
+    description: 'workers expected (coordinator)'
+    required: false
+  min-workers:
+    description: 'min online workers to proceed'
+    required: false
+  wait-timeout:
+    description: 'max wait for workers'
+    required: false
+    default: '300s'
+  worker-index:
+    description: 'matrix index (worker)'
+    required: false
+  tags:
+    description: 'tailnet tags'
+    required: false
+    default: 'tag:ci-distcc'
+  run-prefix:
+    description: 'naming prefix'
+    required: false
+  distcc-slots:
+    description: 'per-worker slots (0=nproc)'
+    required: false
+    default: '0'
+  lzo:
+    description: 'enable LZO'
+    required: false
+    default: 'true'
+  pump:
+    description: 'enable pump (experimental)'
+    required: false
+    default: 'false'
+  poll-interval:
+    description: 'teardown poll'
+    required: false
+    default: '1s'
+  teardown-threshold:
+    description: 'consecutive offline reads'
+    required: false
+    default: '5'
+  sccache:
+    description: 'enable sccache'
+    required: false
+    default: 'false'
 outputs:
-  distcc-hosts:   { description: 'assembled DISTCC_HOSTS', value: '${{ steps.run.outputs.distcc-hosts }}' }
-  distcc-j:       { description: 'suggested -j', value: '${{ steps.run.outputs.distcc-j }}' }
-  workers-online: { description: 'participating workers', value: '${{ steps.run.outputs.workers-online }}' }
+  distcc-hosts:
+    description: 'assembled DISTCC_HOSTS'
+    value: '${{ steps.run.outputs.distcc-hosts }}'
+  distcc-j:
+    description: 'suggested -j'
+    value: '${{ steps.run.outputs.distcc-j }}'
+  workers-online:
+    description: 'participating workers'
+    value: '${{ steps.run.outputs.workers-online }}'
 runs:
   using: 'composite'
   steps:
