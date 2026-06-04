@@ -34,14 +34,17 @@ func writeOutputs(path, hosts string, j, online int) error {
 	return err
 }
 
-// Run executes the coordinator main phase: join, wait workers, forward, export.
-// Teardown (mesh.Close) happens in the action's post phase via a separate call.
+// Run executes the coordinator's forwarder work: join, wait workers, forward,
+// export. It runs in the detached forwarder process, which stays alive until the
+// job ends; teardown happens implicitly when the runner kills it at job end.
 func Run(ctx context.Context, c *config.Config, hostname string) error {
 	mesh, err := tsmesh.Up(ctx, hostname, c.OAuthSecret, c.Tags)
 	if err != nil {
 		return err
 	}
-	// NOTE: do NOT close mesh here; the post phase closes it as the teardown signal.
+	// NOTE: do NOT close mesh here. The forwarding goroutines must stay alive for
+	// the user's build; the node drops (the teardown signal) when the detached
+	// forwarder is killed at job end.
 
 	prefix := c.RunPrefix + "-worker-"
 	waitCtx, cancel := context.WithTimeout(ctx, c.WaitTimeout)
