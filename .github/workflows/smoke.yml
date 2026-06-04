@@ -1,0 +1,133 @@
+name: smoke
+
+# Heavyweight end-to-end smoke test: use the distcc farm (default ubuntu-latest,
+# NON-container) to build the Linux kernel from torvalds/linux master, then boot
+# the result in QEMU and assert it reaches init (VFS panic = success, no rootfs).
+#
+# Manual only. Pick the kernel config with the `config` input:
+#   tinyconfig    - smallest; a few hundred .o. Fast. Verified path.
+#   defconfig     - x86_64 defconfig bzImage (no modules). Thousands of .o.
+#   allmodconfig  - max load on the farm. Tens of thousands of .o. UNVERIFIED;
+#                   may run very long / time out.
+
+on:
+  workflow_dispatch:
+    inputs:
+      config:
+        description: 'kernel config: tinyconfig | defconfig | allmodconfig'
+        required: false
+        default: 'tinyconfig'
+
+jobs:
+  workers:
+    strategy:
+      matrix: { idx: [1, 2, 3] }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.26' }
+      - run: sudo apt-get update && sudo apt-get install -y distcc
+      - uses: ./
+        with:
+          mode: worker
+          worker-index: ${{ matrix.idx }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.26' }
+
+      - name: Install distcc + kernel build deps + qemu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            distcc \
+            flex bison libelf-dev bc libssl-dev \
+            qemu-system-x86
+
+      - id: farm
+        uses: ./
+        with:
+          mode: coordinator
+          expected-workers: 3
+          min-workers: 1
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Fetch Linux master
+        run: git clone --depth 1 https://github.com/torvalds/linux.git linux
+
+      - name: Configure kernel
+        working-directory: linux
+        run: |
+          CFG='${{ github.event.inputs.config }}'
+          CFG="${CFG:-tinyconfig}"
+          echo "Using config target: $CFG"
+          make "$CFG"
+          # tinyconfig strips TTY/serial/printk, so a bare boot is silent in QEMU.
+          # Force the bits needed to see console output + reach init.
+          if [ "$CFG" = "tinyconfig" ]; then
+            ./scripts/config \
+              --enable CONFIG_PRINTK \
+              --enable CONFIG_TTY \
+              --enable CONFIG_SERIAL_8250 \
+              --enable CONFIG_SERIAL_8250_CONSOLE \
+              --enable CONFIG_BINFMT_ELF \
+              --enable CONFIG_BLK_DEV_INITRD
+            make olddefconfig
+          fi
+
+      - name: Build kernel via the distcc farm
+        working-directory: linux
+        run: |
+          echo "DISTCC_HOSTS=$DISTCC_HOSTS"
+          echo "DISTCC_J=$DISTCC_J  CC_PREFIX=$DISTCC_CC_PREFIX"
+          # KBUILD_BUILD_TIMESTAMP keeps the build reproducible-ish; not required.
+          make -j"${DISTCC_J}" CC="${DISTCC_CC_PREFIX} gcc" bzImage 2>&1 | tail -25
+          test -f arch/x86/boot/bzImage || { echo "bzImage not built"; exit 1; }
+          ls -la arch/x86/boot/bzImage
+          echo "SMOKE build = PASS"
+
+      - name: Boot the kernel in QEMU
+        working-directory: linux
+        run: |
+          # No rootfs on purpose: a successful boot runs all init and then panics
+          # on "Unable to mount root fs" / "No working init" — that panic IS proof
+          # the kernel booted. -no-reboot so QEMU stops at panic; timeout as a fence.
+          set +e
+          timeout 90 qemu-system-x86_64 \
+            -nographic -no-reboot \
+            -kernel arch/x86/boot/bzImage \
+            -append "console=ttyS0 panic=-1" \
+            > boot.log 2>&1
+          set -e
+          echo "----- boot.log (tail) -----"
+          tail -40 boot.log
+
+          # Evidence 1: we really ran THIS kernel (banner).
+          if ! grep -q "Linux version" boot.log; then
+            echo "SMOKE boot = FAIL (no kernel banner — kernel never produced console output)"
+            exit 1
+          fi
+          # Evidence 2: it completed init and reached the rootfs stage.
+          if grep -Eq "VFS: Unable to mount root fs|No working init|Kernel panic" boot.log; then
+            echo "SMOKE boot = PASS (kernel reached init / rootfs stage)"
+          else
+            echo "SMOKE boot = FAIL (banner seen but never reached init; see boot.log)"
+            exit 1
+          fi
+
+      - name: Upload boot log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-boot-log
+          path: linux/boot.log
+          if-no-files-found: ignore
