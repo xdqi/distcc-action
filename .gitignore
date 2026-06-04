@@ -1,0 +1,4 @@
+/distcc-action
+/dist/
+*.test
+spike/**/tmp/
