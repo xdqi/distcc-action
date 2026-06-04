@@ -89,8 +89,11 @@ jobs:
         run: |
           echo "DISTCC_HOSTS=$DISTCC_HOSTS"
           echo "DISTCC_J=$DISTCC_J  CC_PREFIX=$DISTCC_CC_PREFIX"
-          # KBUILD_BUILD_TIMESTAMP keeps the build reproducible-ish; not required.
-          make -j"${DISTCC_J}" CC="${DISTCC_CC_PREFIX} gcc" bzImage 2>&1 | tail -25
+          # Stream live (NO `| tail` — it buffered the whole build before).
+          # DISTCC_VERBOSE=1 prints, per file, which host distcc dispatched to
+          # (e.g. "compile X on 100.x"). Fine here: tinyconfig/defconfig are small.
+          export DISTCC_VERBOSE=1
+          make -j"${DISTCC_J}" CC="${DISTCC_CC_PREFIX} gcc" bzImage
           test -f arch/x86/boot/bzImage || { echo "bzImage not built"; exit 1; }
           ls -la arch/x86/boot/bzImage
           echo "SMOKE build = PASS"
@@ -101,15 +104,14 @@ jobs:
           # No rootfs on purpose: a successful boot runs all init and then panics
           # on "Unable to mount root fs" / "No working init" — that panic IS proof
           # the kernel booted. -no-reboot so QEMU stops at panic; timeout as a fence.
+          # tee: QEMU console streams LIVE to the job log AND is saved for grep below.
           set +e
           timeout 90 qemu-system-x86_64 \
             -nographic -no-reboot \
             -kernel arch/x86/boot/bzImage \
             -append "console=ttyS0 panic=-1" \
-            > boot.log 2>&1
+            2>&1 | tee boot.log
           set -e
-          echo "----- boot.log (tail) -----"
-          tail -40 boot.log
 
           # Evidence 1: we really ran THIS kernel (banner).
           if ! grep -q "Linux version" boot.log; then

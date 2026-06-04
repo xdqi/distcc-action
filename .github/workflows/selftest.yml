@@ -39,7 +39,9 @@ jobs:
           echo "DISTCC_J=$DISTCC_J  CC_PREFIX=$DISTCC_CC_PREFIX"
           git clone --depth 1 https://github.com/redis/redis
           cd redis
-          DISTCC_VERBOSE=1 make -j${DISTCC_J} CC="${DISTCC_CC_PREFIX} gcc" 2>&1 | tee /tmp/build.log | tail -20
+          # tee streams live to the job log AND saves for the distribution grep
+          # below; NO trailing `| tail` (that would re-buffer and kill the live view).
+          DISTCC_VERBOSE=1 make -j${DISTCC_J} CC="${DISTCC_CC_PREFIX} gcc" 2>&1 | tee /tmp/build.log
           test -x src/redis-server || { echo "redis-server not built"; exit 1; }
           echo "SELFTEST build = PASS"
           if grep -qE "compile .* on 100\." /tmp/build.log; then
