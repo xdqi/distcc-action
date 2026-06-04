@@ -90,9 +90,9 @@ jobs:
           echo "DISTCC_HOSTS=$DISTCC_HOSTS"
           echo "DISTCC_J=$DISTCC_J  CC_PREFIX=$DISTCC_CC_PREFIX"
           # Stream live (NO `| tail` — it buffered the whole build before).
-          # DISTCC_VERBOSE=1 prints, per file, which host distcc dispatched to
-          # (e.g. "compile X on 100.x"). Fine here: tinyconfig/defconfig are small.
-          export DISTCC_VERBOSE=1
+          # Kernel make prints one "CC <file>" line per unit = live progress.
+          # Per-job dispatch is visible in each worker's distccd log; we do NOT
+          # set DISTCC_VERBOSE (it's a distcc env var — keep the build env clean).
           make -j"${DISTCC_J}" CC="${DISTCC_CC_PREFIX} gcc" bzImage
           test -f arch/x86/boot/bzImage || { echo "bzImage not built"; exit 1; }
           ls -la arch/x86/boot/bzImage
