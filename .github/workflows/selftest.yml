@@ -29,7 +29,9 @@ jobs:
         with:
           mode: coordinator
           expected-workers: 2
-          min-workers: 1
+          # no min-workers -> defaults to expected (2): wait for BOTH workers so
+          # the self-test exercises real multi-worker distribution. Slow starters
+          # now make the bus (we wait for `expected` until wait-timeout).
           oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci

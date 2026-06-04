@@ -100,20 +100,40 @@ func (m *Mesh) Peers(ctx context.Context) ([]Peer, error) {
 	return out, nil
 }
 
-// WaitForWorkers polls until at least min workers (hostname prefix) are online
-// or the deadline passes. Returns the online worker peers found.
-func (m *Mesh) WaitForWorkers(ctx context.Context, prefix string, min int, poll time.Duration) ([]Peer, error) {
+// workersReady decides whether the coordinator should stop waiting.
+//   - Before timeout: ready only once the FULL expected count is online, so a
+//     slow-starting worker still makes the bus instead of being left idle.
+//   - After timeout: fall back to the min-workers floor (but never below min).
+//
+// min is a floor for graceful degradation, NOT a trigger to start early.
+func workersReady(online, expected, min int, timedOut bool) bool {
+	if !timedOut {
+		return online >= expected
+	}
+	return online >= min
+}
+
+// WaitForWorkers polls until the expected number of workers (hostname prefix)
+// are online, or until the deadline — after which it accepts >= min. Returns the
+// online worker peers found.
+func (m *Mesh) WaitForWorkers(ctx context.Context, prefix string, expected, min int, poll time.Duration) ([]Peer, error) {
 	for {
 		peers, err := m.Peers(ctx)
+		var online []Peer
 		if err == nil {
-			if online := FilterOnline(peers, prefix); len(online) >= min {
+			online = FilterOnline(peers, prefix)
+			if workersReady(len(online), expected, min, false) {
 				return online, nil
 			}
 		}
 		select {
 		case <-ctx.Done():
 			peers, _ := m.Peers(context.Background())
-			return FilterOnline(peers, prefix), ctx.Err()
+			online = FilterOnline(peers, prefix)
+			if workersReady(len(online), expected, min, true) {
+				return online, nil
+			}
+			return online, ctx.Err()
 		case <-time.After(poll):
 		}
 	}

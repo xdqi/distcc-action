@@ -25,6 +25,28 @@ func TestPeerPresentOnline(t *testing.T) {
 	}
 }
 
+func TestWorkersReady(t *testing.T) {
+	// Before timeout: only ready once we reach the FULL expected count, so slow
+	// workers can still join the bus instead of being left out.
+	if workersReady(1, 2, 1, false) {
+		t.Error("1/2 online before timeout: should keep waiting (min is a floor, not a trigger)")
+	}
+	if !workersReady(2, 2, 1, false) {
+		t.Error("2/2 online before timeout: should be ready")
+	}
+	// After timeout: accept the min-workers floor.
+	if !workersReady(1, 2, 1, true) {
+		t.Error("1/2 online after timeout with min=1: should proceed")
+	}
+	if workersReady(0, 2, 1, true) {
+		t.Error("0 online after timeout with min=1: should NOT proceed (fail)")
+	}
+	// min == expected: timeout doesn't lower the bar below min.
+	if workersReady(1, 2, 2, true) {
+		t.Error("1/2 after timeout with min=2: should NOT proceed")
+	}
+}
+
 func TestSplitTags(t *testing.T) {
 	got := splitTags("tag:ci-distcc, tag:extra")
 	if len(got) != 2 || got[0] != "tag:ci-distcc" || got[1] != "tag:extra" {

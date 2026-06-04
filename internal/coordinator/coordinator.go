@@ -49,12 +49,12 @@ func Run(ctx context.Context, c *config.Config, hostname string) error {
 	prefix := c.RunPrefix + "-worker-"
 	waitCtx, cancel := context.WithTimeout(ctx, c.WaitTimeout)
 	defer cancel()
-	online, werr := mesh.WaitForWorkers(waitCtx, prefix, c.MinWorkers, c.PollInterval)
+	online, werr := mesh.WaitForWorkers(waitCtx, prefix, c.ExpectedWorkers, c.MinWorkers, c.PollInterval)
 	if len(online) < c.MinWorkers {
 		mesh.Close()
 		return fmt.Errorf("only %d/%d workers online by timeout: %v", len(online), c.MinWorkers, werr)
 	}
-	log.Printf("[coord] %d workers online", len(online))
+	log.Printf("[coord] %d of %d workers online (min %d)", len(online), c.ExpectedWorkers, c.MinWorkers)
 
 	slots := c.DistccSlots
 	if slots == 0 {
