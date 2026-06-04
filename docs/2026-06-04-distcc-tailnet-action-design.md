@@ -126,7 +126,8 @@ workflow
       uses: <repo>@v1  with: { mode: coordinator, expected-workers: N, ... }
         main:
           - tsnet join (hostname=<run_id>-coordinator, tag:ci-distcc)
-          - wait until N <run_id>-worker-* peers are Online
+          - wait for <run_id>-worker-* peers Online, up to wait-timeout;
+            then proceed iff online >= min-workers, else fail
           - for each worker, tsnet-forward a local port -> worker:distccd
           - export DISTCC_HOSTS (localhost ports) + DISTCC_J to the job env
           - hand control back to the user's build steps
@@ -201,21 +202,50 @@ be declared in the user's ACL `tagOwners`.
 
 ## Action Interface
 
-Single composite/binary Action with a `mode` input. Indicative `with:` inputs
-(finalized during implementation):
+Single binary Action with a `mode` input. The user supplies the matrix and the
+build command in their own workflow; the Action provides only networking +
+orchestration + teardown and exports `DISTCC_HOSTS` / `DISTCC_J`.
 
-- `mode`: `coordinator` | `worker` (required)
-- `oauth-client-id`, `oauth-secret`: Tailscale OAuth credentials (required)
-- `tags`: tailnet tags to advertise (default `tag:ci-distcc`)
-- `expected-workers`: N (coordinator only)
-- `run-prefix`: defaults to `github.run_id`
-- `distcc-slots`: per-worker job slots (default 4)
-- `ping-fail-threshold`, `poll-interval`: teardown tuning (defaults 5 / 1s)
-- `sccache`: optional, default off (see below)
+### Inputs — required
 
-The user supplies the matrix and the build command in their own workflow; the
-Action provides only networking + orchestration + teardown and exports
-`DISTCC_HOSTS` / `DISTCC_J`.
+| input | description |
+|---|---|
+| `mode` | `coordinator` \| `worker` |
+| `oauth-client-id` | Tailscale OAuth client ID |
+| `oauth-secret` | Tailscale OAuth client secret |
+
+OAuth requires **both** id and secret (they are a pair). OAuth avoids the 90-day
+auth-key rotation. The advertised tag must be declared in the user's ACL
+`tagOwners`.
+
+### Inputs — coordinator only
+
+| input | default | description |
+|---|---|---|
+| `expected-workers` | (required) | number of workers expected; align with the matrix size |
+| `min-workers` | = `expected-workers` | minimum online workers to proceed; fewer (after timeout) fails the build |
+| `wait-timeout` | `300s` | max time to wait for workers; on timeout, proceed iff online ≥ `min-workers` |
+
+### Inputs — common / tunable
+
+| input | default | description |
+|---|---|---|
+| `tags` | `tag:ci-distcc` | tailnet tag(s) the node advertises |
+| `run-prefix` | `${{ github.run_id }}` | prefix for node hostnames and resources (kills zombie same-name nodes) |
+| `distcc-slots` | `nproc` | per-worker concurrent job slots (the `/LIMIT` in `DISTCC_HOSTS`) |
+| `lzo` | `true` | enable distcc LZO compression (recommended across DERP) |
+| `pump` | `false` | enable distcc pump mode — **experimental, NOT verified under container/userspace/cross-host; off by default** |
+| `poll-interval` | `1s` | teardown poll interval |
+| `teardown-threshold` | `5` | consecutive "coordinator peer offline" observations before a worker exits |
+| `sccache` | `false` | enable the optional sccache layer (see below) |
+
+### Outputs — coordinator
+
+| output | description |
+|---|---|
+| `distcc-hosts` | the assembled `DISTCC_HOSTS` (also exported to the job env) |
+| `distcc-j` | suggested `-j` value (sum of worker slots) |
+| `workers-online` | number of workers that actually came online and participated |
 
 ## Optional: sccache (default off)
 
@@ -233,6 +263,11 @@ fall through to distcc for distributed compile. Kept off by default so the core
   the coordinator's local port to a worker's distccd) is assumed-good but must be
   proven as the first implementation step, given the spike's lesson that
   unverified assumptions bite (fact #4).
+- **pump mode (`pump: true`) is experimental and unverified.** It distributes
+  preprocessing to workers and is more sensitive to header-path consistency; it
+  was not exercised in the spike under container/userspace/cross-host conditions.
+  Default off; documented as experimental so users who enable it understand any
+  breakage is expected, not an Action bug.
 - distcc over DERP relay adds latency (~150ms RTT in the spike); small builds may
   not benefit. Acceptable per non-goals.
 - Tailnet peer propagation is eventually consistent; pre-warm + N-consecutive
