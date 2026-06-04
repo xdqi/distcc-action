@@ -1,0 +1,118 @@
+name: smoke-defconfig
+
+# Heavyweight smoke: a 10-worker distcc farm builds the Linux kernel with the
+# real-world x86_64 `defconfig` (thousands of translation units — enough to give
+# the farm a serious workload), then boots the result in QEMU.
+#
+# Unlike allyesconfig, a defconfig kernel actually boots, so the QEMU boot is a
+# HARD pass criterion (reaching the init/rootfs stage), same as the `smoke`
+# workflow — not best-effort.
+#
+# Manual only. Uses default ubuntu-latest (non-container) runners. Each worker's
+# distccd log streams live into its job log.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  workers:
+    strategy:
+      fail-fast: false
+      matrix:
+        idx: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.26' }
+      - run: sudo apt-get update && sudo apt-get install -y distcc
+      - uses: xdqi/distcc-action@v1
+        with:
+          mode: worker
+          worker-index: ${{ matrix.idx }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          distcc-log-level: info
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.26' }
+
+      - name: Install distcc + kernel build deps + qemu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            distcc \
+            flex bison libelf-dev bc libssl-dev \
+            qemu-system-x86
+
+      - id: farm
+        uses: xdqi/distcc-action@v1
+        with:
+          mode: coordinator
+          expected-workers: 10
+          # Wait for all 10 until wait-timeout, then proceed with at least 5
+          # (some hosted runners may queue). min is a floor, not a start trigger.
+          min-workers: 5
+          wait-timeout: 420s
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Fetch Linux master
+        run: git clone --depth 1 https://github.com/torvalds/linux.git linux
+
+      - name: Configure kernel (defconfig)
+        working-directory: linux
+        run: |
+          make defconfig
+          echo "Workers participating: ${DISTCC_WORKERS_ONLINE}"
+
+      - name: Build kernel via the farm (defconfig)
+        working-directory: linux
+        run: |
+          echo "DISTCC_HOSTS=$DISTCC_HOSTS"
+          echo "DISTCC_J=$DISTCC_J  CC_PREFIX=$DISTCC_CC_PREFIX  workers=$DISTCC_WORKERS_ONLINE"
+          # Stream live (no `| tail`); kernel make prints one "CC <file>" line per
+          # unit = live progress. Per-job dispatch is visible in each worker's
+          # distccd log. No DISTCC_VERBOSE (keep the build env clean).
+          make -j"${DISTCC_J}" CC="${DISTCC_CC_PREFIX} gcc" bzImage
+          test -f arch/x86/boot/bzImage || { echo "bzImage not built"; exit 1; }
+          ls -la arch/x86/boot/bzImage
+          echo "SMOKE-DEFCONFIG build = PASS"
+
+      - name: Boot the kernel in QEMU
+        working-directory: linux
+        run: |
+          # No rootfs on purpose: a defconfig kernel boots all the way to the
+          # rootfs stage and panics on "Unable to mount root fs" / "No working
+          # init" — that panic IS proof it booted. tee: live + saved for grep.
+          set +e
+          timeout 120 qemu-system-x86_64 \
+            -nographic -no-reboot -m 1024 \
+            -kernel arch/x86/boot/bzImage \
+            -append "console=ttyS0 panic=-1" \
+            2>&1 | tee boot.log
+          set -e
+          if ! grep -q "Linux version" boot.log; then
+            echo "SMOKE-DEFCONFIG boot = FAIL (no kernel banner)"
+            exit 1
+          fi
+          if grep -Eq "VFS: Unable to mount root fs|No working init|Kernel panic" boot.log; then
+            echo "SMOKE-DEFCONFIG boot = PASS (kernel reached init / rootfs stage)"
+          else
+            echo "SMOKE-DEFCONFIG boot = FAIL (banner seen but never reached init)"
+            exit 1
+          fi
+
+      - name: Upload boot log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-boot-log-defconfig
+          path: linux/boot.log
+          if-no-files-found: ignore
