@@ -49,7 +49,3 @@ runs:
         INPUT_TEARDOWN_THRESHOLD: ${{ inputs.teardown-threshold }}
         INPUT_SCCACHE: ${{ inputs.sccache }}
       run: "${{ github.action_path }}/distcc-action"
-    - id: teardown
-      if: ${{ always() && inputs.mode == 'coordinator' }}
-      shell: bash
-      run: "${{ github.action_path }}/distcc-action --teardown"

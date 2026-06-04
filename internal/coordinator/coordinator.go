@@ -115,7 +115,8 @@ func Run(ctx context.Context, c *config.Config, hostname string) error {
 			return err
 		}
 	}
-	// Keep forwards alive for the user's build; the calling process must stay
-	// alive across the build step (handled by main/post wiring in a later task).
+	// Keep forwards alive for the user's build; this function returns here and
+	// the caller (detached forwarder process) blocks on select{} until job end,
+	// at which point the runner tears it down.
 	return nil
 }
