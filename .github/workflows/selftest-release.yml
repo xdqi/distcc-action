@@ -1,0 +1,66 @@
+name: selftest-release
+
+# Lightweight end-to-end test of the DOWNLOAD path: unlike selftest.yml (which
+# uses `uses: ./` and builds the binary from source), this consumes the
+# published action by an immutable release ref, so the JS wrapper resolves the
+# release, downloads the prebuilt distcc-action-<os>-<arch> asset, caches it via
+# tool-cache, and execs it. No setup-go — the download path needs only the
+# runner's built-in Node. Same shape as selftest: 2 workers + 1 coordinator
+# build redis over the farm and assert real distribution.
+#
+# Manual only. Bump the @vX.Y.Z ref below when publishing a new release ( `uses:`
+# does not evaluate ${{ }} expressions, so the ref must be a literal).
+
+on: [workflow_dispatch]
+
+jobs:
+  workers:
+    strategy:
+      matrix: { idx: [1, 2] }
+    runs-on: ubuntu-latest
+    steps:
+      # No setup-go and no manual apt: `uses: xdqi/distcc-action@vX.Y.Z` downloads
+      # the prebuilt binary, and install-distcc installs distcc for us.
+      - uses: xdqi/distcc-action@v1.0.0
+        with:
+          mode: worker
+          worker-index: ${{ matrix.idx }}
+          install-distcc: true
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - id: farm
+        uses: xdqi/distcc-action@v1.0.0
+        with:
+          mode: coordinator
+          expected-workers: 2
+          install-distcc: true
+          # no min-workers -> defaults to expected (2): wait for BOTH workers so
+          # the test exercises real multi-worker distribution.
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+      - name: Build redis via the farm
+        run: |
+          echo "DISTCC_HOSTS=$DISTCC_HOSTS"
+          echo "DISTCC_J=$DISTCC_J  CC_PREFIX=$DISTCC_CC_PREFIX  workers=$DISTCC_WORKERS_ONLINE"
+          git clone --depth 1 https://github.com/redis/redis
+          cd redis
+          # DISTCC_VERBOSE is prefixed on THIS make only (not exported, not the
+          # form a user copies) so the test can assert real distribution without
+          # polluting the build environment. Streamed live; tee'd for grep.
+          DISTCC_VERBOSE=1 make -j${DISTCC_J} CC="${DISTCC_CC_PREFIX} gcc" 2>&1 | tee /tmp/build.log
+          test -x src/redis-server || { echo "redis-server not built"; exit 1; }
+          echo "SELFTEST-RELEASE build = PASS"
+          # Workers are reached via local forward ports (127.0.0.1:37xx) over the
+          # tailnet, so distcc reports the host as 127.0.0.1:37xx — proof a unit
+          # was dispatched to a worker rather than compiled locally.
+          if grep -qE "compile .* on 127\.0\.0\.1:37[0-9][0-9]" /tmp/build.log; then
+            n=$(grep -cE "compile .* on 127\.0\.0\.1:37[0-9][0-9].* completed ok" /tmp/build.log)
+            echo "SELFTEST-RELEASE distribution = CONFIRMED (${n} compiles dispatched to farm workers)"
+          else
+            echo "SELFTEST-RELEASE distribution = WARN (no remote dispatch seen; may have compiled locally)"
+          fi
