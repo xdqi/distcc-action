@@ -1,5 +1,8 @@
 name: 'distcc Tailnet Farm'
 description: 'Turn GitHub runners into an ephemeral distcc farm over a Tailscale mesh'
+branding:
+  icon: 'cpu'
+  color: 'green'
 inputs:
   mode:
     description: 'coordinator|worker'
