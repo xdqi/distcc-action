@@ -22,11 +22,11 @@ jobs:
         idx: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      # No setup-go: `uses: xdqi/distcc-action@v1` downloads the prebuilt binary
+      - uses: actions/checkout@v6
+      # No setup-go: `uses: xdqi/distcc-action@v1.0.0` downloads the prebuilt binary
       # from Releases, so the worker jobs need only the runner's built-in Node.
       - run: sudo apt-get update && sudo apt-get install -y distcc
-      - uses: xdqi/distcc-action@v1
+      - uses: xdqi/distcc-action@v1.0.0
         with:
           mode: worker
           worker-index: ${{ matrix.idx }}
@@ -38,8 +38,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      # No setup-go: the coordinator (`xdqi/distcc-action@v1`) downloads the
+      - uses: actions/checkout@v6
+      # No setup-go: the coordinator (`xdqi/distcc-action@v1.0.0`) downloads the
       # prebuilt binary from Releases — no Go toolchain needed on this runner.
 
       - name: Install distcc + kernel build deps + qemu
@@ -51,7 +51,7 @@ jobs:
             qemu-system-x86
 
       - id: farm
-        uses: xdqi/distcc-action@v1
+        uses: xdqi/distcc-action@v1.0.0
         with:
           mode: coordinator
           expected-workers: 10
@@ -111,7 +111,7 @@ jobs:
 
       - name: Upload boot log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: qemu-boot-log-defconfig
           path: linux/boot.log

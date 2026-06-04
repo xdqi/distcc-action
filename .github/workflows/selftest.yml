@@ -6,11 +6,11 @@ jobs:
       matrix: { idx: [1, 2] }
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       # KEEP setup-go: `uses: ./` runs the action against the CURRENT checkout, so
       # the wrapper (empty GITHUB_ACTION_REF) builds the binary FROM SOURCE rather
       # than downloading a release — the self-test must exercise the committed code.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with: { go-version: '1.26' }
       # distcc is installed by the action itself (install-distcc), exercising
       # that path; no manual apt step needed.
@@ -25,9 +25,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       # KEEP setup-go: `uses: ./` builds from the current source (see workers job).
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with: { go-version: '1.26' }
       - id: farm
         uses: ./

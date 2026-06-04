@@ -24,10 +24,10 @@ jobs:
       matrix: { idx: [1, 2, 3] }
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       # KEEP setup-go: `uses: ./` builds the binary FROM SOURCE (empty
       # GITHUB_ACTION_REF), so this smoke test runs the current checkout's code.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with: { go-version: '1.26' }
       # distcc installed by the action (install-distcc) — no manual apt step.
       - uses: ./
@@ -42,9 +42,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       # KEEP setup-go: `uses: ./` builds from the current source (see workers job).
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with: { go-version: '1.26' }
 
       - name: Install distcc + kernel build deps + qemu
@@ -132,7 +132,7 @@ jobs:
 
       - name: Upload boot log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: qemu-boot-log
           path: linux/boot.log

@@ -22,9 +22,9 @@ actual compiling.
 > `actions/setup-go`): a small bundled wrapper runs on the runner's built-in
 > Node and, at runtime, downloads the prebuilt static binary for your
 > OS/arch from this repo's [Releases](https://github.com/xdqi/distcc-action/releases)
-> (cached via the runner tool-cache). The version is resolved automatically from
-> the `@vX`/`@vX.Y.Z` ref in your `uses:` line. If the download is unavailable
-> and `go` happens to be on `PATH`, it falls back to building from source.
+> (cached via the runner tool-cache). Pin an immutable release in your `uses:`
+> ref (e.g. `@v1.0.0`). If the download is unavailable and `go` happens to be on
+> `PATH`, it falls back to building from source.
 
 > **Proof it works:** the CI in this repo uses the farm to build the **Linux
 > kernel** from `torvalds/linux` and boots the result in QEMU. (see the [smoke workflow](.github/workflows/smoke.yml))
@@ -60,7 +60,7 @@ jobs:
       matrix: { idx: [1, 2, 3] }   # 3 helper runners
     runs-on: ubuntu-latest
     steps:
-      - uses: xdqi/distcc-action@v1
+      - uses: xdqi/distcc-action@v1.0.0
         with:
           mode: worker
           worker-index: ${{ matrix.idx }}
@@ -71,8 +71,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: xdqi/distcc-action@v1
+      - uses: actions/checkout@v6
+      - uses: xdqi/distcc-action@v1.0.0
         with:
           mode: coordinator
           expected-workers: 3
@@ -274,14 +274,15 @@ after the job finishes.
 
 **Do I need to install Go?**
 No. The action is a Node 24 JS wrapper that downloads the prebuilt binary from
-this repo's Releases at runtime — only the runner's built-in Node is used. The
-binary version is picked from your `uses:` ref: `@v1` resolves to the latest
-`v1.*` release, `@v1.2.3` to exactly that tag. (Prebuilt assets are published
-for Linux `amd64`/`arm64`/`arm`/`386` and macOS `amd64`/`arm64`; Windows is not
-supported — distcc is a POSIX tool.) Only this repo's own CI — which pins
-`uses: ./` to test the current
-checkout — builds the binary from source, and that's why those workflows install
-Go.
+this repo's Releases at runtime — only the runner's built-in Node is used. Pin
+an exact release in your `uses:` ref (e.g. `@v1.0.0`); the wrapper downloads the
+matching prebuilt asset. (Prebuilt assets are published for Linux
+`amd64`/`arm64`/`arm`/`386` and macOS `amd64`/`arm64`; Windows is not
+supported — distcc is a POSIX tool.) The wrapper also resolves partial refs
+(`@v1` → the latest `v1.*` release) when such a moving tag exists, but releases
+are pinned to immutable `vX.Y.Z` tags. Only this repo's own CI — which pins
+`uses: ./` to test the current checkout — builds the binary from source, and
+that's why those workflows install Go.
 
 ---
 

@@ -38,8 +38,8 @@ jobs:
           - { goos: darwin,  goarch: amd64 }
           - { goos: darwin,  goarch: arm64 }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with: { go-version: '1.26' }
 
       - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
@@ -55,7 +55,7 @@ jobs:
           echo "ASSET=$out" >> "$GITHUB_ENV"
 
       - name: Upload artifact (for inspection)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ env.ASSET }}
           path: ${{ env.ASSET }}
@@ -67,7 +67,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Resolve tag
         # TAG_INPUT comes in as an env var (NOT interpolated into the script
@@ -85,7 +85,7 @@ jobs:
           echo "TAG=$TAG" >> "$GITHUB_ENV"
 
       - name: Download all built binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: assets
           merge-multiple: true
