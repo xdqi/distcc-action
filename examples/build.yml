@@ -1,0 +1,35 @@
+name: distcc-farm build
+on: [workflow_dispatch]
+jobs:
+  workers:
+    strategy:
+      matrix: { idx: [1, 2, 3] }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y distcc
+      - uses: xdqi/distcc-action@v1
+        with:
+          mode: worker
+          worker-index: ${{ matrix.idx }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci-distcc
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y distcc
+      - id: farm
+        uses: xdqi/distcc-action@v1
+        with:
+          mode: coordinator
+          expected-workers: 3
+          min-workers: 1
+          oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci-distcc
+      - name: Build
+        run: make -j${DISTCC_J} CC="${DISTCC_CC_PREFIX} gcc"
+      # teardown is automatic at job end — no explicit step needed
