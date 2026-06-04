@@ -23,3 +23,11 @@ func TestTotalJ(t *testing.T) {
 		t.Errorf("j=%d want 12", j)
 	}
 }
+
+func TestBuildHostsPump(t *testing.T) {
+	got := BuildHosts([]string{"3701"}, 4, true, true)
+	want := "127.0.0.1:3701/4,lzo,cpp"
+	if got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+}
