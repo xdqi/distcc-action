@@ -39,13 +39,18 @@ jobs:
           echo "DISTCC_J=$DISTCC_J  CC_PREFIX=$DISTCC_CC_PREFIX  workers=$DISTCC_WORKERS_ONLINE"
           git clone --depth 1 https://github.com/redis/redis
           cd redis
-          # Stream live; no DISTCC_VERBOSE (it's a distcc env var — keep the build
-          # env clean, exactly as a real user would run it).
-          make -j${DISTCC_J} CC="${DISTCC_CC_PREFIX} gcc"
+          # DISTCC_VERBOSE is prefixed on THIS make only (not exported, not the
+          # form a user copies) so the self-test can assert real distribution
+          # without polluting the build environment. Streamed live; tee'd for grep.
+          DISTCC_VERBOSE=1 make -j${DISTCC_J} CC="${DISTCC_CC_PREFIX} gcc" 2>&1 | tee /tmp/build.log
           test -x src/redis-server || { echo "redis-server not built"; exit 1; }
           echo "SELFTEST build = PASS"
-          # Distribution evidence comes from the WORKER jobs' distccd logs
-          # (dcc_job_summary COMPILE_OK lines), not from polluting this build.
-          if [ "${DISTCC_WORKERS_ONLINE:-0}" -ge 1 ]; then
-            echo "SELFTEST farm = ${DISTCC_WORKERS_ONLINE} worker(s) online (see each worker job's distccd log for per-file dispatch)"
+          # Workers are reached via local forward ports (127.0.0.1:37xx) over the
+          # tailnet, so distcc reports the host as 127.0.0.1:37xx — that's the
+          # proof a unit was dispatched to a worker rather than compiled locally.
+          if grep -qE "compile .* on 127\.0\.0\.1:37[0-9][0-9]" /tmp/build.log; then
+            n=$(grep -cE "compile .* on 127\.0\.0\.1:37[0-9][0-9].* completed ok" /tmp/build.log)
+            echo "SELFTEST distribution = CONFIRMED (${n} compiles dispatched to farm workers)"
+          else
+            echo "SELFTEST distribution = WARN (no remote dispatch seen; may have compiled locally)"
           fi
