@@ -38,9 +38,11 @@ func main() {
 	ctx := context.Background()
 	hostname := c.RunPrefix + "-" + c.Mode
 	if c.Mode == "worker" {
-		if idx := os.Getenv("INPUT_WORKER_INDEX"); idx != "" {
-			hostname = c.RunPrefix + "-worker-" + idx
+		idx := os.Getenv("INPUT_WORKER_INDEX")
+		if idx == "" {
+			log.Fatalf("worker-index is required for mode=worker (pass the matrix index, e.g. ${{ matrix.idx }})")
 		}
+		hostname = c.RunPrefix + "-worker-" + idx
 	}
 
 	if c.Mode == "worker" {

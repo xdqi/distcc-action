@@ -2,9 +2,12 @@
 // over the tailnet, and that distcc compiles a .c through that forward.
 //
 // role=server : tsnet up, accept tailnet TCP on :3632, proxy to 127.0.0.1:3632
-//               (a plain distccd running in the same container)
+//
+//	(a plain distccd running in the same container)
+//
 // role=client : tsnet up, listen on 127.0.0.1:LOCAL, dial the server peer's
-//               :3632 over tsnet, splice. Then run distcc against 127.0.0.1:LOCAL.
+//
+//	:3632 over tsnet, splice. Then run distcc against 127.0.0.1:LOCAL.
 package main
 
 import (

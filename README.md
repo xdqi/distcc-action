@@ -46,7 +46,7 @@ See `examples/build.yml`. Sketch:
 | input | required | default | description |
 |---|---|---|---|
 | `mode` | yes | — | `coordinator` or `worker` |
-| `oauth-client-id` | yes | — | Tailscale OAuth client id |
+| `oauth-client-id` | no | — | Tailscale OAuth client id (reserved; only the secret is used today) |
 | `oauth-secret` | yes | — | Tailscale OAuth client secret |
 | `expected-workers` | coordinator | — | workers expected (match the matrix) |
 | `min-workers` | no | = expected | min online workers to proceed (else fail after timeout) |
@@ -76,6 +76,11 @@ and `DISTCC_CC_PREFIX` into `$GITHUB_ENV`, so later steps in the same job can us
 - `pump: true` is experimental and unverified under container/cross-host; off by default.
 - Teardown latency is ~`teardown-threshold × poll-interval` seconds after the coordinator job ends.
 - Build the binary locally with `CGO_ENABLED=0 go build ./cmd/distcc-action` (Go 1.26+; the tailscale dep requires it).
+
+## Known limitations
+- Per-host slot count (`distcc-slots=0`) is resolved from the COORDINATOR's CPU count, so on heterogeneous runners (coordinator and workers with different core counts) the slot limit may not match worker capacity. Set `distcc-slots` explicitly for non-uniform runners.
+- Designed for GitHub-hosted (ephemeral) runners. On self-hosted persistent runners, the fixed local forward ports (3701+) and the PID file could collide across concurrent jobs on the same machine.
+- Early/explicit teardown: the binary supports `./distcc-action --teardown` (kills the detached forwarder) but the composite action does not wire it; teardown normally happens at job end. Advanced users can add their own teardown step.
 
 ### sccache / pump
 The coordinator exports `DISTCC_CC_PREFIX` (`distcc`, or `sccache distcc` when

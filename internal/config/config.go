@@ -45,8 +45,8 @@ func loadFrom(get func(string) string) (*Config, error) {
 	if c.Mode != "coordinator" && c.Mode != "worker" {
 		return nil, fmt.Errorf("mode must be coordinator|worker, got %q", c.Mode)
 	}
-	if c.OAuthClientID == "" || c.OAuthSecret == "" {
-		return nil, fmt.Errorf("oauth-client-id and oauth-secret are both required")
+	if c.OAuthSecret == "" {
+		return nil, fmt.Errorf("oauth-secret is required")
 	}
 	if c.RunPrefix == "" {
 		return nil, fmt.Errorf("run-prefix empty and GITHUB_RUN_ID unset")

@@ -5,8 +5,8 @@ inputs:
     description: 'coordinator|worker'
     required: true
   oauth-client-id:
-    description: 'Tailscale OAuth client id'
-    required: true
+    description: 'Tailscale OAuth client id (reserved; only the secret is used today)'
+    required: false
   oauth-secret:
     description: 'Tailscale OAuth client secret'
     required: true
