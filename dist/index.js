@@ -35531,6 +35531,15 @@ async function resolveBinary() {
 }
 
 async function run() {
+  // Windows is unsupported: the binary's detached-forwarder/teardown relies on
+  // POSIX syscall.Setsid/Kill (so no windows asset is published), and distcc
+  // itself is a POSIX tool. Fail fast with a clear message instead of a
+  // confusing "no asset" + go-build-fallback chain.
+  if (goos() === 'windows') {
+    core.setFailed('distcc-action does not support Windows runners (the distcc farm is Linux/macOS only).');
+    return;
+  }
+
   await ensureDistcc();
   const bin = await resolveBinary();
 

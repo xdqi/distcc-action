@@ -277,8 +277,9 @@ No. The action is a Node 24 JS wrapper that downloads the prebuilt binary from
 this repo's Releases at runtime — only the runner's built-in Node is used. The
 binary version is picked from your `uses:` ref: `@v1` resolves to the latest
 `v1.*` release, `@v1.2.3` to exactly that tag. (Prebuilt assets are published
-for Linux `amd64`/`arm64`/`arm`/`386`, macOS `amd64`/`arm64`, and Windows
-`amd64`.) Only this repo's own CI — which pins `uses: ./` to test the current
+for Linux `amd64`/`arm64`/`arm`/`386` and macOS `amd64`/`arm64`; Windows is not
+supported — distcc is a POSIX tool.) Only this repo's own CI — which pins
+`uses: ./` to test the current
 checkout — builds the binary from source, and that's why those workflows install
 Go.
 

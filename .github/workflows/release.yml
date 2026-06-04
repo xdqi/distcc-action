@@ -26,6 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # No windows: the binary's detached-forwarder/teardown uses POSIX
+      # syscall.Setsid + syscall.Kill (procctl.go), which don't exist on Windows
+      # — and distcc/distccd are POSIX tools the farm never runs on Windows.
       matrix:
         include:
           - { goos: linux,   goarch: amd64 }
@@ -34,7 +37,6 @@ jobs:
           - { goos: linux,   goarch: '386' }
           - { goos: darwin,  goarch: amd64 }
           - { goos: darwin,  goarch: arm64 }
-          - { goos: windows, goarch: amd64 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
