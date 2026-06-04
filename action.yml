@@ -54,6 +54,10 @@ inputs:
     description: 'enable sccache'
     required: false
     default: 'false'
+  distcc-log-level:
+    description: 'distccd log level (worker): critical|error|warning|notice|info|debug'
+    required: false
+    default: 'info'
 outputs:
   distcc-hosts:
     description: 'assembled DISTCC_HOSTS'
@@ -92,4 +96,5 @@ runs:
         INPUT_POLL_INTERVAL: ${{ inputs.poll-interval }}
         INPUT_TEARDOWN_THRESHOLD: ${{ inputs.teardown-threshold }}
         INPUT_SCCACHE: ${{ inputs.sccache }}
+        INPUT_DISTCC_LOG_LEVEL: ${{ inputs.distcc-log-level }}
       run: "${{ github.action_path }}/distcc-action"

@@ -40,7 +40,7 @@ func Run(ctx context.Context, c *config.Config, hostname string) error {
 	if slots == 0 {
 		slots = distccrun.Nproc()
 	}
-	dd, err := distccrun.StartDaemon(3632, slots)
+	dd, err := distccrun.StartDaemon(3632, slots, c.DistccLogLevel)
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package distccrun
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -33,15 +34,22 @@ func Nproc() int { return runtime.NumCPU() }
 
 // StartDaemon launches distccd as a TCP listener on the given port. Returns the
 // process so the caller can stop it. Non-detaching so we own the lifecycle.
-func StartDaemon(port, jobs int) (*exec.Cmd, error) {
+// distccd logs to stderr at logLevel; we wire its stdout/stderr to ours so the
+// daemon's per-job log lines stream live into the worker's CI job log.
+func StartDaemon(port, jobs int, logLevel string) (*exec.Cmd, error) {
+	if logLevel == "" {
+		logLevel = "info"
+	}
 	cmd := exec.Command("distccd",
 		"--daemon", "--no-detach",
 		"--allow", "0.0.0.0/0", // tailnet-only reachability is enforced by the tsnet listener
 		"--listen", "127.0.0.1",
 		"--port", strconv.Itoa(port),
 		"--jobs", strconv.Itoa(jobs),
-		"--log-stderr", "--log-level", "info",
+		"--log-stderr", "--log-level", logLevel,
 	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start distccd: %w", err)
 	}

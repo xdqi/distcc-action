@@ -17,6 +17,7 @@ type Config struct {
 	MinWorkers      int
 	WaitTimeout     time.Duration
 	DistccSlots     int
+	DistccLogLevel  string
 	LZO             bool
 	Pump            bool
 	PollInterval    time.Duration
@@ -35,6 +36,7 @@ func loadFrom(get func(string) string) (*Config, error) {
 		Tags:           orDefault(get("INPUT_TAGS"), "tag:ci-distcc"),
 		RunPrefix:      orDefault(get("INPUT_RUN_PREFIX"), get("GITHUB_RUN_ID")),
 		DistccSlots:    atoiOr(get("INPUT_DISTCC_SLOTS"), 0), // 0 => nproc, resolved later
+		DistccLogLevel: orDefault(get("INPUT_DISTCC_LOG_LEVEL"), "info"),
 		LZO:            boolOr(get("INPUT_LZO"), true),
 		Pump:           boolOr(get("INPUT_PUMP"), false),
 		Sccache:        boolOr(get("INPUT_SCCACHE"), false),
