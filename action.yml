@@ -61,43 +61,25 @@ inputs:
     description: 'distccd log level (worker): critical|error|warning|notice|info|debug'
     required: false
     default: 'info'
+  install-distcc:
+    description: 'Install the stock distcc package automatically (apt, Linux only). Default false: install it yourself.'
+    required: false
+    default: 'false'
+  github-token:
+    description: 'Token used to query this repo''s Releases API and download the prebuilt binary'
+    required: false
+    default: '${{ github.token }}'
 outputs:
+  # Node JS actions expose outputs by having the action's process write them to
+  # $GITHUB_OUTPUT — which the Go binary already does (distcc-hosts/distcc-j/
+  # workers-online). So these are declared WITHOUT a `value:` mapping; the
+  # runner collects them from $GITHUB_OUTPUT after the action's main exits.
   distcc-hosts:
     description: 'assembled DISTCC_HOSTS'
-    value: '${{ steps.run.outputs.distcc-hosts }}'
   distcc-j:
     description: 'suggested -j'
-    value: '${{ steps.run.outputs.distcc-j }}'
   workers-online:
     description: 'participating workers'
-    value: '${{ steps.run.outputs.workers-online }}'
 runs:
-  using: 'composite'
-  steps:
-    - id: build-bin
-      shell: bash
-      run: |
-        cd "${{ github.action_path }}"
-        if [ ! -x ./distcc-action ]; then
-          CGO_ENABLED=0 go build -o distcc-action ./cmd/distcc-action
-        fi
-    - id: run
-      shell: bash
-      env:
-        INPUT_MODE: ${{ inputs.mode }}
-        INPUT_OAUTH_CLIENT_ID: ${{ inputs.oauth-client-id }}
-        INPUT_OAUTH_SECRET: ${{ inputs.oauth-secret }}
-        INPUT_EXPECTED_WORKERS: ${{ inputs.expected-workers }}
-        INPUT_MIN_WORKERS: ${{ inputs.min-workers }}
-        INPUT_WAIT_TIMEOUT: ${{ inputs.wait-timeout }}
-        INPUT_WORKER_INDEX: ${{ inputs.worker-index }}
-        INPUT_TAGS: ${{ inputs.tags }}
-        INPUT_RUN_PREFIX: ${{ inputs.run-prefix }}
-        INPUT_DISTCC_SLOTS: ${{ inputs.distcc-slots }}
-        INPUT_LZO: ${{ inputs.lzo }}
-        INPUT_PUMP: ${{ inputs.pump }}
-        INPUT_POLL_INTERVAL: ${{ inputs.poll-interval }}
-        INPUT_TEARDOWN_THRESHOLD: ${{ inputs.teardown-threshold }}
-        INPUT_SCCACHE: ${{ inputs.sccache }}
-        INPUT_DISTCC_LOG_LEVEL: ${{ inputs.distcc-log-level }}
-      run: "${{ github.action_path }}/distcc-action"
+  using: 'node24'
+  main: 'dist/index.js'

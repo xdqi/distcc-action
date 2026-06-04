@@ -18,6 +18,14 @@ It's a single static Go binary (Tailscale embedded via [`tsnet`](https://tailsca
 that does the networking, orchestration, and teardown. Stock `distcc` does the
 actual compiling.
 
+> **No Go toolchain required.** This is a **Node 24 JavaScript action** (like
+> `actions/setup-go`): a small bundled wrapper runs on the runner's built-in
+> Node and, at runtime, downloads the prebuilt static binary for your
+> OS/arch from this repo's [Releases](https://github.com/xdqi/distcc-action/releases)
+> (cached via the runner tool-cache). The version is resolved automatically from
+> the `@vX`/`@vX.Y.Z` ref in your `uses:` line. If the download is unavailable
+> and `go` happens to be on `PATH`, it falls back to building from source.
+
 > **Proof it works:** the CI in this repo uses the farm to build the **Linux
 > kernel** from `torvalds/linux` and boots the result in QEMU. (see the [smoke workflow](.github/workflows/smoke.yml))
 
@@ -52,11 +60,11 @@ jobs:
       matrix: { idx: [1, 2, 3] }   # 3 helper runners
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get update && sudo apt-get install -y distcc
       - uses: xdqi/distcc-action@v1
         with:
           mode: worker
           worker-index: ${{ matrix.idx }}
+          install-distcc: true   # or install distcc yourself
           oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
           oauth-secret:    ${{ secrets.TS_OAUTH_SECRET }}
 
@@ -64,11 +72,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y distcc
       - uses: xdqi/distcc-action@v1
         with:
           mode: coordinator
           expected-workers: 3
+          install-distcc: true
           oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
           oauth-secret:    ${{ secrets.TS_OAUTH_SECRET }}
       - name: Build
@@ -79,8 +87,9 @@ That's it. The coordinator exports `DISTCC_HOSTS`, `DISTCC_J`, and
 `DISTCC_CC_PREFIX` into the job environment, so the build step just uses them.
 Teardown is automatic when the coordinator job ends.
 
-> Requires a one-time [Tailscale setup](#tailscale-setup-one-time) and the
-> `distcc` package on every runner.
+> Requires a one-time [Tailscale setup](#tailscale-setup-one-time). The `distcc`
+> package must be on every runner — pass `install-distcc: true` to have the
+> action install it (apt/Linux), or install it yourself.
 
 ---
 
@@ -156,6 +165,7 @@ from your tailnet after each run.
 | `poll-interval` | no | `1s` | How often a worker polls for the coordinator during teardown |
 | `teardown-threshold` | no | `5` | Consecutive "coordinator gone" reads before a worker exits |
 | `distcc-log-level` | no | `info` | Worker `distccd` log level: `critical`…`debug` (logs stream live into the worker job) |
+| `install-distcc` | no | `false` | Install the stock `distcc` package for you (apt, Linux only). Leave `false` to install it yourself (e.g. pinned version, non-apt distro, container with it preinstalled). |
 
 ## Outputs
 
@@ -261,6 +271,16 @@ after the job finishes.
 `tsnet` embeds a userspace Tailscale node directly in the binary — no
 `tailscaled`, no `/dev/net/tun`, no SOCKS proxy plumbing. One static
 (`CGO_ENABLED=0`) binary runs anywhere, including inside containers.
+
+**Do I need to install Go?**
+No. The action is a Node 24 JS wrapper that downloads the prebuilt binary from
+this repo's Releases at runtime — only the runner's built-in Node is used. The
+binary version is picked from your `uses:` ref: `@v1` resolves to the latest
+`v1.*` release, `@v1.2.3` to exactly that tag. (Prebuilt assets are published
+for Linux `amd64`/`arm64`/`arm`/`386`, macOS `amd64`/`arm64`, and Windows
+`amd64`.) Only this repo's own CI — which pins `uses: ./` to test the current
+checkout — builds the binary from source, and that's why those workflows install
+Go.
 
 ---
 

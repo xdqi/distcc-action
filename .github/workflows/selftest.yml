@@ -7,13 +7,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # KEEP setup-go: `uses: ./` runs the action against the CURRENT checkout, so
+      # the wrapper (empty GITHUB_ACTION_REF) builds the binary FROM SOURCE rather
+      # than downloading a release — the self-test must exercise the committed code.
       - uses: actions/setup-go@v5
         with: { go-version: '1.26' }
-      - run: sudo apt-get update && sudo apt-get install -y distcc
+      # distcc is installed by the action itself (install-distcc), exercising
+      # that path; no manual apt step needed.
       - uses: ./
         with:
           mode: worker
           worker-index: ${{ matrix.idx }}
+          install-distcc: true
           oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
@@ -21,14 +26,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # KEEP setup-go: `uses: ./` builds from the current source (see workers job).
       - uses: actions/setup-go@v5
         with: { go-version: '1.26' }
-      - run: sudo apt-get update && sudo apt-get install -y distcc
       - id: farm
         uses: ./
         with:
           mode: coordinator
           expected-workers: 2
+          install-distcc: true
           # no min-workers -> defaults to expected (2): wait for BOTH workers so
           # the self-test exercises real multi-worker distribution. Slow starters
           # now make the bus (we wait for `expected` until wait-timeout).

@@ -1,0 +1,102 @@
+name: release
+
+# Build the prebuilt static Go binaries and attach them to a release. The JS
+# action wrapper (dist/index.js) downloads these at runtime, so every supported
+# OS/arch must be published per tag.
+#
+# Triggered by pushing an immutable version tag (vMAJOR.MINOR.PATCH), or manually
+# via workflow_dispatch with an existing tag. Moving aliases (v1, v1.0) are NOT
+# matched here — re-point those separately so the bundled dist/ JS advances too.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to (re)build and upload assets for (e.g. v1.0.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64 }
+          - { goos: linux,   goarch: arm64 }
+          - { goos: linux,   goarch: arm   }
+          - { goos: linux,   goarch: '386' }
+          - { goos: darwin,  goarch: amd64 }
+          - { goos: darwin,  goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.26' }
+
+      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          out="distcc-action-${GOOS}-${GOARCH}"
+          [ "$GOOS" = "windows" ] && out="${out}.exe"
+          go build -trimpath -ldflags='-s -w' -o "$out" ./cmd/distcc-action
+          ls -la "$out"
+          echo "ASSET=$out" >> "$GITHUB_ENV"
+
+      - name: Upload artifact (for inspection)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET }}
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag
+        # TAG_INPUT comes in as an env var (NOT interpolated into the script
+        # body) so an attacker-supplied dispatch tag can't inject shell.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG_INPUT: ${{ github.event.inputs.tag }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="$TAG_INPUT"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "Resolved tag: $TAG"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Download all built binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Create or reuse the release, then upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la assets
+          # Idempotent: create the release with auto notes if it doesn't exist yet,
+          # then (re)upload every matrix asset, clobbering any prior copies.
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          gh release upload "$TAG" assets/distcc-action-* --clobber
+          echo "Uploaded assets to release $TAG:"
+          gh release view "$TAG" --json assets --jq '.assets[].name'

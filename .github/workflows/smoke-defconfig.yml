@@ -23,8 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: '1.26' }
+      # No setup-go: `uses: xdqi/distcc-action@v1` downloads the prebuilt binary
+      # from Releases, so the worker jobs need only the runner's built-in Node.
       - run: sudo apt-get update && sudo apt-get install -y distcc
       - uses: xdqi/distcc-action@v1
         with:
@@ -39,8 +39,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with: { go-version: '1.26' }
+      # No setup-go: the coordinator (`xdqi/distcc-action@v1`) downloads the
+      # prebuilt binary from Releases — no Go toolchain needed on this runner.
 
       - name: Install distcc + kernel build deps + qemu
         run: |

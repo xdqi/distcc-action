@@ -1,4 +1,8 @@
+# Local `go build` scratch binary (CI/release build the real per-platform assets)
 /distcc-action
-/dist/
 *.test
 spike/**/tmp/
+
+# JS wrapper deps; the bundled dist/ IS committed (it's the action entrypoint,
+# like setup-go's dist/), so it is deliberately NOT ignored.
+/node_modules/

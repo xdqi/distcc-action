@@ -25,13 +25,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # KEEP setup-go: `uses: ./` builds the binary FROM SOURCE (empty
+      # GITHUB_ACTION_REF), so this smoke test runs the current checkout's code.
       - uses: actions/setup-go@v5
         with: { go-version: '1.26' }
-      - run: sudo apt-get update && sudo apt-get install -y distcc
+      # distcc installed by the action (install-distcc) — no manual apt step.
       - uses: ./
         with:
           mode: worker
           worker-index: ${{ matrix.idx }}
+          install-distcc: true
           oauth-client-id: ${{ secrets.TS_OAUTH_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
@@ -40,6 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # KEEP setup-go: `uses: ./` builds from the current source (see workers job).
       - uses: actions/setup-go@v5
         with: { go-version: '1.26' }
 
